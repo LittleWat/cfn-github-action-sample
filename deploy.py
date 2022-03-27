@@ -48,7 +48,7 @@ def main(is_dryrun=False):
         print("result:")
         pprint(result, indent=4)
 
-    post_to_pull_request(result)
+    post_to_pull_request(json.dumps(result))
 
 
 def dryrun(all_param_dic: dict):
