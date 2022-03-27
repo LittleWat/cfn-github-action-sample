@@ -40,15 +40,22 @@ def main(is_dryrun=False):
         all_param_dic = json.load(f)["Parameters"]
 
     if is_dryrun:
+        runstr = "dryrun"
         result = dryrun(all_param_dic)
         print("result:")
         pprint(result, indent=4)
     else:
+        runstr = "deploy"
         result = deploy(all_param_dic)
         print("result:")
         pprint(result, indent=4)
 
-    post_to_pull_request(json.dumps(result))
+    message = f"""
+    ***** {ENV} {runstr} result *****
+
+    {json.dumps(result, indent=4)}
+    """
+    post_to_pull_request(message)
 
 
 def dryrun(all_param_dic: dict):
@@ -183,8 +190,8 @@ def create_stack_if_not_exist(client, stack_name, template_body, parameters):
             raise
 
 
-def post_to_pull_request(result):
-    response = requests.post(URL, json={"body": result}, headers={
+def post_to_pull_request(body):
+    response = requests.post(URL, json={"body": body}, headers={
         "Authorization": f"token {GITHUB_TOKEN}"})
     print("response:")
     pprint(response.json(), indent=4)
