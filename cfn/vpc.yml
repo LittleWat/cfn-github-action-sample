@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: sample vpc
+
+Parameters:
+  ProjectName:
+    Type: String
+
+  Env:
+    Type: String
+
+  CidrBlock:
+    Type: String
+
+Resources:
+  SampleVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref CidrBlock
+      Tags:
+        - Key: Name
+          Value: !Sub ${Env}-${ProjectName}-sample-vpc

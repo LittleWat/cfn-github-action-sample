@@ -1,0 +1,8 @@
+{
+  "Parameters": {
+    "ProjectName": "hoge",
+    "Env": "dev",
+    "CidrBlock": "10.11.0.0/16",
+    "SampleBucketName": "fuga-bucket"
+  }
+}

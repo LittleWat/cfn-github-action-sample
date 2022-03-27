@@ -1,0 +1,30 @@
+name: stg-release
+
+on:
+  push:
+    branches:
+      - stg-release
+
+jobs:
+  deploy-staging:
+    environment: staging
+    runs-on: [self-hosted]
+    env:
+      ENV: stg
+      ProjectName: hoge
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.3.2
+      - name: Aws credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+      - name: Pip install
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Deploy source
+        run: |
+          python deploy.py
