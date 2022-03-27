@@ -28,7 +28,7 @@ class YmlItem:
         return f"{self.yml_filename} @ {self.region}"
 
 
-# デプロイの実行順序を決める
+# Execute from the top item of YML_ORDER
 YML_ORDER = [
     YmlItem("vpc.yml", "ap-northeast-1"),
     YmlItem("s3.yml", "ap-northeast-1"),
@@ -55,7 +55,9 @@ def main(is_dryrun=False):
 
     {json.dumps(result, indent=4)}
     """
-    post_to_pull_request(message)
+
+    if URL != "":
+        post_to_pull_request(message)
 
 
 def dryrun(all_param_dic: dict):
