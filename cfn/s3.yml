@@ -18,7 +18,7 @@ Resources:
     DeletionPolicy: Retain
     Properties:
       VersioningConfiguration:
-        Status: Enabled
+        Status: "Suspended"
       BucketName: !Sub ${Env}-${ProjectName}-${SampleBucketName}
       AccessControl: Private
       PublicAccessBlockConfiguration:
