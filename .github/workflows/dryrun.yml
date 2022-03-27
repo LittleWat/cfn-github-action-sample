@@ -26,7 +26,5 @@ jobs:
         run: |
           python deploy.py --dryrun
         env:
-          BASE_BRANCH: ${{ github.base_ref }}
-          HEAD_REF: ${{ github.head_ref }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           URL: ${{ github.event.pull_request.comments_url }}
