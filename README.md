@@ -2,6 +2,8 @@
 
 Cloudformation with Github Actions sample repository.
 
+japanese article -> [ぼくのかんがえたさいきょうのGithub Actionsで複数のCloudFormationファイルをCI/CDする方法 - Qiita](https://qiita.com/LittleWat/items/7630c765815d6d8c6e85)
+
 You can
 
 - Run CI(linter, dryrun) and see the result on pull request
