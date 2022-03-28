@@ -96,7 +96,11 @@ def process_yml(yml_item: YmlItem, all_param_dic: dict, deploys: bool) -> List:
     middle_name = "deploy" if deploys else "dryrun"
     change_set_name = f"{stack_suffix}-{middle_name}-{int(time.time())}"
 
-    create_stack_if_not_exist(client, stack_name, yml_str, formatted_param)
+    if not is_stack_exists(client, stack_name):
+        if deploys:
+            create_stack(client, stack_name, yml_str, formatted_param)
+        else:
+            return [f"{stack_name} Stack does not exist"]
 
     # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/cloudformation.html#CloudFormation.Client.create_change_set
     create_response = client.create_change_set(
@@ -161,34 +165,35 @@ def create_param(param_master, params):
     return result
 
 
-def create_stack_if_not_exist(client, stack_name, template_body, parameters):
+
+def is_stack_exists(client, stack_name):
     try:
-        response = client.describe_stacks(StackName=stack_name)
-        print("{} stack exists".format(stack_name))
+        client.describe_stacks(StackName=stack_name)
+        return True
     except botocore.exceptions.ClientError as err:
         if err.response['Error']['Code'] == 'ValidationError':
-            print(f"stack not found: {stack_name}")
-            client.create_stack(
-                StackName=stack_name,
-                TemplateBody=template_body,
-                Capabilities=['CAPABILITY_NAMED_IAM'],
-                Parameters=parameters
-            )
-            print(f"create_stack started: {stack_name}")
+            return False
+        raise
 
-            waiter = client.get_waiter('stack_create_complete')
-            waiter.wait(
-                StackName=stack_name,
-                WaiterConfig={
-                    'Delay': 3,
-                    'MaxAttempts': 50
-                }
-            )
-            print(f"create_stack finished: {stack_name}")
 
-        else:
-            raise
+def create_stack(client, stack_name, template_body, parameters):
+    client.create_stack(
+        StackName=stack_name,
+        TemplateBody=template_body,
+        Capabilities=['CAPABILITY_NAMED_IAM'],
+        Parameters=parameters
+    )
+    print(f"create_stack started: {stack_name}")
 
+    waiter = client.get_waiter('stack_create_complete')
+    waiter.wait(
+        StackName=stack_name,
+        WaiterConfig={
+            'Delay': 3,
+            'MaxAttempts': 50
+        }
+    )
+    print(f"create_stack finished: {stack_name}")
 
 def post_to_pull_request(body):
     response = requests.post(URL, json={"body": body}, headers={
