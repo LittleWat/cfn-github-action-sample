@@ -2,9 +2,9 @@ name: prd-release
 
 on:
   pull_request:
-    branches:
-      - prd-release
-
+      branches:
+        - prd-release
+      types: [closed]
 jobs:
   deploy-production:
     if: github.event.pull_request.merged == true && github.base_ref == 'prd-release'
