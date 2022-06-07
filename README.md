@@ -13,6 +13,14 @@ You can
     - `git push origin HEAD:dev-release -f`
   - `prd-release` is dangerous, so you need to make a pull request to deploy to `prd` environment.
 
+## Setup
+
+You need to create s3 bucket to put yaml files.
+
+The bucket name is like this;
+
+- `${ENV}-${PROJECT_NAME}-infra-cfn`
+
 ## Run Locally
 
 1. Download direnv

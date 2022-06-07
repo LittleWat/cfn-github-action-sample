@@ -18,6 +18,9 @@ URL = os.getenv("URL", "")
 
 SIGNED_URL_TIMEOUT_SECONDS = 60 * 5  # 5 minutes
 
+YML_DIR = "./cfn"
+PARAM_DIR = "./param"
+
 
 @dataclass
 class YmlItem:
@@ -36,7 +39,13 @@ YML_ORDER = [
 
 
 def main(is_dryrun=False):
-    with open(f"./param/{ENV}-parameters.json") as f:
+    """main function
+
+    Args:
+        is_dryrun (bool, optional): dryrun or not. Defaults to False.
+    """
+    param_path = os.path.join(PARAM_DIR, f"{ENV}-parameters.json")
+    with open(param_path, "r", encoding='UTF-8') as f:
         all_param_dic = json.load(f)["Parameters"]
 
     if is_dryrun:
@@ -50,17 +59,29 @@ def main(is_dryrun=False):
         print("result:")
         pprint(result, indent=4)
 
-    message = f"""
-    ***** {ENV} {runstr} result *****
+    message_prefix = f"***** {ENV} {runstr} result *****"
+    message = f"""{message_prefix}
 
     {json.dumps(result, indent=4)}
     """
 
     if URL != "":
+        # remove past dryrun results on PR
+        clean_before_ci_pull_request_comments(message_prefix)
+
+        # post dryrun results to PR
         post_to_pull_request(message)
 
 
-def dryrun(all_param_dic: dict):
+def dryrun(all_param_dic: dict) -> dict:
+    """dryrun(just create changeset)
+
+    Args:
+        all_param_dic (dict): parameter dictionary
+
+    Returns:
+        dict: result dictionary(yml_filename to result)
+    """
     result = {}
     for yml_item in YML_ORDER:
         print(f"***** {yml_item} start *****")
@@ -70,7 +91,15 @@ def dryrun(all_param_dic: dict):
     return result
 
 
-def deploy(all_param_dic: dict):
+def deploy(all_param_dic: dict) -> dict:
+    """deploy(create changeset and execute it)
+
+    Args:
+        all_param_dic (dict): parameter dictionary
+
+    Returns:
+        dict: result dictionary(yml_filename to result)
+    """
     result = {}
     for yml_item in YML_ORDER:
         print(f"***** {yml_item} start *****")
@@ -81,9 +110,20 @@ def deploy(all_param_dic: dict):
 
 
 def process_yml(yml_item: YmlItem, all_param_dic: dict, deploys: bool) -> List:
-    client = boto3.client('cloudformation', region_name=yml_item.region)
+    """process a yml file
 
-    with open(yml_item.yml_filename) as file:
+    Args:
+        yml_item (YmlItem): yml information
+        all_param_dic (dict): parameter dictionary
+        deploys (bool): whether it is deploy or dryrun
+
+    Returns:
+        List: _description_
+    """
+    client = boto3.client('cloudformation', region_name=yml_item.region)
+    yml_path = os.path.join(YML_DIR, yml_item.yml_filename)
+
+    with open(yml_path, "r", encoding='UTF-8') as file:
         yml_str = file.read()
         parsed = yaml_parse(yml_str)
         use_params = []
@@ -99,7 +139,7 @@ def process_yml(yml_item: YmlItem, all_param_dic: dict, deploys: bool) -> List:
     middle_name = "deploy" if deploys else "dryrun"
     change_set_name = f"{stack_suffix}-{middle_name}-{int(time.time())}"
 
-    yml_url = upload_yml_to_s3(yml_item.yml_filename, yml_item.region)
+    yml_url = upload_yml_to_s3(yml_path, yml_item.region)
     if not is_stack_exists(client, stack_name):
         if deploys:
             create_stack(client, stack_name, yml_url, formatted_param)
@@ -167,7 +207,16 @@ def process_yml(yml_item: YmlItem, all_param_dic: dict, deploys: bool) -> List:
         return [{"error": str(err)}]
 
 
-def upload_yml_to_s3(yml_filename: str, region: str):
+def upload_yml_to_s3(yml_filename: str, region: str) -> str:
+    """upload yml file to s3 and get presigned url
+
+    Args:
+        yml_filename (str): yml file name to upload
+        region (str): target s3 region
+
+    Returns:
+        str: yml presigned url
+    """
     s3_client = boto3.client('s3', region_name=region)
     s3_destination_bucket = f"{ENV}-{PROJECT_NAME}-infra-cfn"
     s3_client.upload_file(
@@ -181,7 +230,16 @@ def upload_yml_to_s3(yml_filename: str, region: str):
     return s3_source_signed_url
 
 
-def create_param(param_master, params):
+def create_param(param_master: dict, params: List[str]) -> List[dict]:
+    """create parameter dictionary from parameter master and parameter list
+
+    Args:
+        param_master (dict): includes all parameters
+        params (List[str]): parameters to use for a yml file
+
+    Returns:
+        List[dict]: list of parameter key-value dictionary to use for a yml file
+    """
     result = []
     for param in params:
         if param in param_master:
@@ -192,7 +250,15 @@ def create_param(param_master, params):
     return result
 
 
-def is_stack_exists(client, stack_name):
+def is_stack_exists(client, stack_name: str) -> bool:
+    """check whether a stack exists
+
+    Args:
+        client (client): boto3 cloudformation client
+        stack_name (str): stack name
+    Returns:
+        bool: whether the stack exists
+    """
     try:
         client.describe_stacks(StackName=stack_name)
         return True
@@ -202,7 +268,15 @@ def is_stack_exists(client, stack_name):
         raise
 
 
-def create_stack(client, stack_name, template_url, parameters):
+def create_stack(client, stack_name: str, template_url: str, parameters: List) -> None:
+    """create a stack
+
+    Args:
+        client (clinet): boto3 cloudformation client
+        stack_name (str): stack name
+        template_url (str): CFn template url
+        parameters (List): parameters to use for a yml file
+    """
     client.create_stack(
         StackName=stack_name,
         TemplateURL=template_url,
@@ -222,10 +296,61 @@ def create_stack(client, stack_name, template_url, parameters):
     print(f"create_stack finished: {stack_name}")
 
 
-def post_to_pull_request(body):
+def clean_before_ci_pull_request_comments(message_prefix: str) -> None:
+    """delete all ci PR comments before the latest commits
+    """
+    comments = fetch_pull_request_comments()
+    for comment in comments:
+        if should_delete_comment(comment, message_prefix):
+            delete_pull_request_comment(comment["url"])
+
+
+def fetch_pull_request_comments() -> dict:
+    """fetch pull request comments
+    """
+    response = requests.get(URL, headers={
+        "Authorization": f"token {GITHUB_TOKEN}"})
+
+    # print("fetch_pull_request_comments response:")
+    # pprint(response.json(), indent=4)  # too long to print
+    return response.json()
+
+
+def delete_pull_request_comment(comment_url: str) -> None:
+    """delete_pull_request_comment by id
+
+    Args:
+        id (str): pull request comment id
+    """
+    response = requests.delete(comment_url, headers={
+        "Authorization": f"token {GITHUB_TOKEN}"})
+    print("delete_pull_request_comment response:")
+    print(response)
+
+
+def should_delete_comment(comment: dict, message_prefix: str) -> bool:
+    """check whether a comment should be deleted
+
+    Args:
+        comment (dict): pull request comment
+
+    Returns:
+        bool: whether the comment should be deleted
+    """
+    is_user_bot = comment["user"]["login"] == "github-actions[bot]"
+    is_env_match = comment["body"].startswith(message_prefix)
+    return is_user_bot and is_env_match
+
+
+def post_to_pull_request(body: str) -> None:
+    """post to pull_request_comments
+
+    Args:
+        body (str): comment body
+    """
     response = requests.post(URL, json={"body": body}, headers={
         "Authorization": f"token {GITHUB_TOKEN}"})
-    print("response:")
+    print("post_to_pull_request response:")
     pprint(response.json(), indent=4)
 
 
